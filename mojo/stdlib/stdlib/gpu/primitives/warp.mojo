@@ -87,9 +87,26 @@ fn _shuffle[
             "llvm.nvvm.shfl.sync." + mnemonic + ".f32", Scalar[dtype]
         ](Int32(mask), val, offset, WIDTH_MASK)
     elif dtype in (DType.int32, DType.uint32):
+      # if cuda_compute_capability() >= (6, 0):
         return llvm_intrinsic[
             "llvm.nvvm.shfl.sync." + mnemonic + ".i32", Scalar[dtype]
         ](Int32(mask), val, offset, WIDTH_MASK)
+      # else:
+        # TODO Implement emulation:
+        #extern __shared__ int shmem[];
+#
+# int shfl_emulated(int val, int srcLane) {
+#     int lane = threadIdx.x & (warpSize - 1);
+#     shmem[lane] = val;               // Store our own value
+#     __syncthreads();                 // Barrier across the whole block (or sub‑warp)
+#     int result = shmem[srcLane];     // Read the requested lane
+#     __syncthreads();                 // Optional second barrier if further shuffles follow
+#     return result;
+# }
+        #
+        # return llvm_intrinsic[
+        #     "llvm.nvvm.shfl.sync." + mnemonic + ".i32", Scalar[dtype]
+        # ](Int32(mask), val, offset, WIDTH_MASK)
     elif dtype in (DType.int64, DType.uint64):
         var val_bitcast = bitcast[DType.uint32, simd_width * 2](val)
         var val_half1, val_half2 = val_bitcast.deinterleave()
@@ -262,10 +279,14 @@ fn shuffle_idx[
 
     @parameter
     if is_nvidia_gpu():
-        return _shuffle[
-            "idx",
-            WIDTH_MASK=_WIDTH_MASK,
-        ](mask, val, offset)
+        # return _shuffle[
+        #     "idx",
+        #     WIDTH_MASK=_WIDTH_MASK,
+        # ](mask, val, offset)
+        return CompilationTarget.unsupported_target_error[
+            SIMD[dtype, simd_width],
+            operation="shuffle_idx",
+        ]()
     elif is_amd_gpu():
         return _shuffle_idx_amd(mask, val, offset)
     else:
@@ -358,9 +379,13 @@ fn shuffle_up[
 
     @parameter
     if is_nvidia_gpu():
-        return _shuffle["up", WIDTH_MASK=_WIDTH_MASK_SHUFFLE_UP](
-            mask, val, offset
-        )
+        # return _shuffle["up", WIDTH_MASK=_WIDTH_MASK_SHUFFLE_UP](
+        #     mask, val, offset
+        # )
+        return CompilationTarget.unsupported_target_error[
+            SIMD[dtype, simd_width],
+            operation="shuffle_up",
+        ]()
     elif is_amd_gpu():
         return _shuffle_up_amd(mask, val, offset)
     else:
@@ -454,7 +479,11 @@ fn shuffle_down[
 
     @parameter
     if is_nvidia_gpu():
-        return _shuffle["down", WIDTH_MASK=_WIDTH_MASK](mask, val, offset)
+        # return _shuffle["down", WIDTH_MASK=_WIDTH_MASK](mask, val, offset)
+        return CompilationTarget.unsupported_target_error[
+            SIMD[dtype, simd_width],
+            operation="shuffle_down",
+        ]()
     elif is_amd_gpu():
         return _shuffle_down_amd(mask, val, offset)
     else:
@@ -551,7 +580,11 @@ fn shuffle_xor[
 
     @parameter
     if is_nvidia_gpu():
-        return _shuffle["bfly", WIDTH_MASK=_WIDTH_MASK](mask, val, offset)
+        # return _shuffle["bfly", WIDTH_MASK=_WIDTH_MASK](mask, val, offset)
+        return CompilationTarget.unsupported_target_error[
+            SIMD[dtype, simd_width],
+            operation="shuffle_xor",
+        ]()
     elif is_amd_gpu():
         return _shuffle_xor_amd(mask, val, offset)
     else:

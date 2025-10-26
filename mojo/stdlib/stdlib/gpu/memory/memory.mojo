@@ -39,8 +39,9 @@ from sys import (
     size_of,
 )
 from sys._assembly import inlined_assembly
-from sys.info import CompilationTarget, _is_sm_9x_or_newer
+from sys.info import CompilationTarget, _is_sm_9x_or_newer, _is_sm_52
 from sys.intrinsics import _RegisterPackType
+
 
 from builtin.dtype import _uint_type_of_width
 from memory.pointer import AddressSpace as _AddressSpace
@@ -877,7 +878,10 @@ fn async_copy_wait_all():
 
     @parameter
     if is_nvidia_gpu():
-        llvm_intrinsic["llvm.nvvm.cp.async.wait.all", NoneType]()
+        if _is_sm_52():
+          pass
+        else:
+          llvm_intrinsic["llvm.nvvm.cp.async.wait.all", NoneType]()
     elif is_amd_gpu() or not is_gpu():
         # This operation is a no-op on AMD and CPU.
         pass

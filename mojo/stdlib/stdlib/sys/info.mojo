@@ -492,6 +492,11 @@ fn _is_sm_120x() -> Bool:
 
 
 @always_inline("nodebug")
+fn _is_sm_52() -> Bool:
+    return is_nvidia_gpu["sm_52"]()
+
+
+@always_inline("nodebug")
 fn _has_blackwell_tcgen05() -> Bool:
     return is_nvidia_gpu["sm_100a"]() or is_nvidia_gpu["sm_101a"]()
 
