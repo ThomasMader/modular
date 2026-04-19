@@ -15,8 +15,7 @@
           fhs = pkgs.buildFHSEnv {
             name = "fhs-shell";
             targetPkgs = pkgs: with pkgs; [
-              bash perl curl python3 pixi zlib libxml2
-              #libxml2_13 cacert
+              bash perl curl python3 pixi zlib coreutils libxml2_13
             ];
             runScript = "bash";
             profile = "";
