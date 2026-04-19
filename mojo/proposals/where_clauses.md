@@ -4,7 +4,17 @@
 Status: Proposed, agreement to explore but not committed, not implemented.
 
 **Sept 17, 2025**
-Status: Updated, implementation has been scoped out and prioritized.
+Status: Updated to include param decl constraints, and renamed to "where".
+Implementation has been scoped out and prioritized.
+
+**Oct 1, 2025**
+Status: Updated to remove the error message field. Implementation in progress.
+
+**Dec 4, 2025**
+Status: Original feature implemented. Added `__comptime_assert` statement.
+
+**Feb 3, 2026**
+Status: `__comptime_assert` syntax finalized as `comptime assert`
 
 This document explores adding “where” clauses to Mojo, a major missing
 feature that will allow more safety, expressivity, and APIs that work better
@@ -25,7 +35,7 @@ static-ly known **parser-time** information. For example, we have methods like
 this on SIMD (and thus on core aliases like `Int8`):
 
 ```mojo
-fn _simd_construction_checks[type: DType, size: Int]():
+def _simd_construction_checks[type: DType, size: Int]():
     constrained[
         type is not DType.invalid, "simd type cannot be DType.invalid"
     ]()
@@ -34,7 +44,7 @@ fn _simd_construction_checks[type: DType, size: Int]():
 
 struct SIMD[dtype: DType, size: Int]:
     @implicit
-    fn __init__(out self, value: FloatLiteral):
+    def __init__(out self, value: FloatLiteral):
         ...
         _simd_construction_checks[dtype, size]()
         constrained[
@@ -64,9 +74,9 @@ based on type capabilities, or remove a candidate based on lack of capabilities
 (to resolve an ambiguous candidate set):
 
 ```mojo
-fn thing[size: Int](value: YourType[size])
+def thing[size: Int](value: YourType[size])
   where size.is_power_of_2(): ...
-fn thing[size: Int](value: YourType[size])
+def thing[size: Int](value: YourType[size])
   where not size.is_power_of_2(): ...
 ```
 
@@ -79,14 +89,14 @@ is not holy, it is just made up:
 parameters:
 
 ```mojo
-fn convert[From:.., To:..](value: From) -> To where can_convert_from[From, To]:
+def convert[From:.., To:..](value: From) -> To where can_convert_from[From, To]:
 ```
 
 **Property-based constraints**: Specify requirements beyond simple trait
 conformance
 
 ```mojo
-fn safe_divide[T](a: T, b: T) where (T instanceof Numeric and T.min_value() < 0):
+def safe_divide[T](a: T, b: T) where (T instanceof Numeric and T.min_value() < 0):
 ```
 
 There are many possibilities, this is a pretty important feature for us to have
@@ -114,7 +124,7 @@ struct Matrix[
 ]:
   ...
 
-fn solve_linear_system[
+def solve_linear_system[
   n: Int where n > 0,
   a: Matrix[n, n],       # can assume n > 0 here
   b: Vector[n],
@@ -125,7 +135,7 @@ fn solve_linear_system[
 Another example that references earlier parameters from the argument list:
 
 ```mojo
-fn matmul[
+def matmul[
   m: Int where m > 0,
   n: Int where n > 0,
   k: Int where k > 0,
@@ -139,8 +149,8 @@ also use inline constraints on type parameters for structs:
 
 ```mojo
 struct SIMD[
-  dtype: DType where dtype is not DType.invalid, "simd type cannot be DType.invalid",
-  size: Int where size.is_power_of_two(), "simd width must be power of 2",
+  dtype: DType where dtype is not DType.invalid,
+  size: Int where size.is_power_of_two(),
 ]:
   ...
 ```
@@ -161,31 +171,12 @@ Example:
 ```mojo
 struct SIMD[dtype: DType, size: Int]:
   @implicit
-  fn __init__(out self, value: FloatLiteral)
+  def __init__(out self, value: FloatLiteral)
     requires dtype.is_floating_point():
       <actual code>
 ```
 
-In both forms, a constraint takes a boolean expression and an optional string
-message (printed when overload resolution fails to find any candidate).
-
-Why the optional string? I would like misuse of these conditions to be more
-clear for users, e.g.:
-
-```mojo
-var x : SIMD[f32, 17]
-        ^ error: simd width must be power of 2
-        ^ note: '(size & size-1) == 0' condition failed
-```
-
-Rather than the default, which would have to be something like:
-
-```mojo
-var x : SIMD[f32, 17]
-        ^ error: '(size & size-1) == 0' condition failed
-```
-
-which isn’t as helpful.
+In both forms, a constraint takes a boolean expression.
 
 Notice how this puts the constraints where they belong - put the constraints
 for the SIMD type as a whole on the struct, and put the constraints for the
@@ -212,12 +203,12 @@ resolution.
 
 ### Part #1: Inline Parameter Constraints
 
-We extend parameter parsing and binding to accept and record `where` constraints
-on parameters. These constraints are evaluated at parameter binding time and are
-immediately added to the local invariant set so that subsequent parameters can
-assume them. We store these constraints alongside the parameter declaration
-(e.g., as a list of `TypedAttr` + `StringAttr`), and thread them into
-the current context used by later parameters and nested regions.
+We extend parameter parsing and binding to accept and record `where`
+constraints on parameters. These constraints are evaluated at parameter binding
+time and are immediately added to the local invariant set so that subsequent
+parameters can assume them. We store these constraints alongside the parameter
+declaration (e.g., as a list of `TypedAttr`), and thread them into the current
+context used by later parameters and nested regions.
 
 ### Part #2: Function/Method Constraints
 
@@ -232,7 +223,7 @@ struct SomeThing[
     where size != 233,
 ]:
 
-  fn thing(self) -> Int
+  def thing(self) -> Int
      where size.is_prime():
 ```
 
@@ -253,9 +244,9 @@ a.is_prime()` canonicalizes to `a.is_prime()` because the trivially redundant
 subexpressions.
 
 How do we store this? Method and struct requirements should be stored as a new
-list of `TypedAttr` + `StringAttr` on both function and struct declarations.
-This ensures they’re serialized to modules etc. This is parser time only
-behavior, so these do not need to be lowered to KGEN or later.
+list of `TypedAttr` on both function and struct declarations. This ensures
+they’re serialized to modules etc. This is parser time only behavior, so these
+do not need to be lowered to KGEN or later.
 
 ### Part #3: Contextual Invariants
 
@@ -271,13 +262,13 @@ struct S[
   d: Int,
 ]:
 
-    fn some_method(self)
+    def some_method(self)
        where pred2(b):
 
        @parameter
        if pred3(c):
 
-           fn nested()
+           def nested()
              where pred4(d):
                 # Checking at this point.
                 some_callee(self)
@@ -309,22 +300,22 @@ requirements that `contextual_invariant` doesn’t already encode.
 But what is “truth” here and how do we determine this? The expressions may
 themselves be conjunctions of nested subexpressions, may have unresolved
 operands, and we don’t have an interpreter in the parser. To address this, we
-just allow `ParamOperatorAttr` to canonicalize and simplify the expressions,
-and use pointer equality of the resultant `TypedAttr`’s. If they are identical,
-then they are known to be safe, if not, it should be rejected. I implemented
-the requisite symbolic manipulation at the KGEN level ([in June
-2022](https://github.com/modularml/modular/commit/9fcf5c859adb9e282378fbd37344a0c49cf2c895))
+just allow `ParamOperatorAttr` to canonicalize and simplify the expressions, and
+use pointer equality of the resultant `TypedAttr`’s. If they are identical, then
+they are known to be safe, if not, it should be rejected. I implemented the
+requisite symbolic manipulation at the KGEN level
+([in June 2022](https://github.com/modularml/modular/commit/9fcf5c859adb9e282378fbd37344a0c49cf2c895))
 and we can make other new specific cases fancier as needed.
 
 In the case of a rejection, we can do a bit more digging for better error
-message quality: we can figure out which clause is failing and emit the
-optional string that it corresponds to. For example, if we have something like
-`SIMD[f32, 17]` and the following definition:
+message quality: we can figure out which clause is failing and report the
+failed constraint. For example, if we have something like `SIMD[f32, 17]` and
+the following definition:
 
 ```mojo
 struct SIMD[
-    dtype: DType where dtype is not DType.invalid, "simd type cannot be DType.invalid",
-    size: Int where size.is_power_of_two(), "simd width must be power of 2",
+    dtype: DType where dtype is not DType.invalid,
+    size: Int where size.is_power_of_two(),
 ]:
 ```
 
@@ -334,10 +325,124 @@ The logical way for the compiler to check this is to build up a big conjunction
 much lower level) and then fold it and fail the whole expression - we want
 overload checking to be efficient, because it is normal for some overload set
 candidates to fail without the expression type checker failing overall.
-However, if the whole set fails, we want to print the right string error
-message of the first failing condition and the expression it corresponded to.
+However, if the whole set fails, we want to report the first failing condition.
 This can be done by adding a new failure kind to `OverloadFitness` which error
 emission uses.
+
+## Pain Point: Expressing “assumptions” is cumbersome
+
+An “assumption” is the term we use for constraints we know to be true in a
+given lexical scope. For example, a parameter-if provides its nested scope with
+the assumption that the if-condition is true.
+
+Often-times, users know that a given condition is satisfiable, but it’s not
+directly provable from the code. E.g.
+
+```python
+def needs_prime[x: Int where x.is_prime()]:
+  ...
+
+def main():
+  # Un-provable constraint: 2.is_prime().
+  needs_prime[2]()
+```
+
+This example shows a fully concrete constraint expression that we cannot
+evaluate today, but it extends to fully symbolic expressions too.
+
+The current paradigm we’re forcing users to adopt is a parameter-if:
+
+```python
+@parameter
+if 2.is_prime():
+  needs_prime[2]()
+else
+  constrained[False, "This shouldn't happen"]()
+```
+
+There are two problems:
+
+1. **Forced Verbosity**: The user is forced to write an `else` branch in order
+to verify their assumption.
+
+2. **Forced Scope**: The user is forced to introduce a scope. This can be
+problematic for organizing subsequent code.
+
+### Proposal: Explicit Assumption Injection
+
+A dedicated statement that brings into scope an assumption, similar to
+`constrained` but more powerful.
+
+```python
+comptime assert 2.is_prime()
+needs_prime[2]()
+```
+
+This allows users to easily insert a *checked* assumption into the current
+parameter scope. This is a meta-code statement by nature, so its order relative
+to the base code is irrelevant (similar to `comptime`). It would serve two
+purposes in one go:
+
+- Check that the assumption holds.
+- Inject the assumption into the current scope.
+
+Over time, we plan to phase out the stdlib `constrained` function in favor of
+this statement.
+
+#### Syntax
+
+This will be a simple statement that accepts one/two parameters:
+
+- A Bool expr that represents the condition to assert for.
+- [Optional] A StaticString expr that represents the error message to report
+when the condition fails.
+  - This does *not* need to be a string literal expr.
+
+Examples:
+
+```python
+comptime assert 2.is_prime()
+
+comptime assert 2.is_prime(), "2 should be a prime"
+
+comptime assert x > 2, "x should be greater than 2, got " + x + " instead"
+```
+
+The leading underscores indicate that this is not its final name.
+
+#### Semantics
+
+**Checking**:
+
+If the condition folds to False in the parser, the parser will report a local
+error.
+
+> error: failed comptime assert: condition is always False.
+>
+
+If the condition folds to True in the parser, the parser will report a warning
+that this statement can be removed.
+
+> warning: redundant comptime assert: condition is always True.
+>
+
+Otherwise, the condition is verified by the elaborator, and works exactly like
+`constrained` does today (same error behavior).
+
+**Assuming**:
+
+The parser is able to assume that the condition is true in the current
+parameter scope, and allow users to use this assumption when binding parameters
+/ invoking functions in this parameter scope.
+
+```python
+def needs_prime[x: Int where is_prime(x)]():
+  ...
+
+def main():
+ comptime assert is_prime(2)
+ needs_prime[2]()   # This is OK.
+```
 
 ## Logical extensions (not in scope for this proposal)
 
@@ -356,11 +461,11 @@ struct A[T: AnyType]:
     var elt : T
 
     # existing
-    fn constrained[T2: Copyable](self: A[T2]):
+    def constrained[T2: Copyable](self: A[T2]):
          var elt_copy = self.elt # invoke copyinit
 
     # desired:
-    fn constrained(self)
+    def constrained(self)
       where T instanceof Copyable:
          # need to know T is copyable even though declared AnyType
          var elt_copy = self.elt
@@ -395,10 +500,10 @@ annoying limitation. Consider the following:
 
 ```mojo
 struct X[A: Int]:
-   fn example(self) where A.is_prime(): ...
+   def example(self) where A.is_prime(): ...
 
 
-fn test(value: X[2]):
+def test(value: X[2]):
     # Error, cannot symbolically evaluate '2.is_prime()' to a constant.
     value.example()
 
@@ -459,8 +564,8 @@ The problem is that it really is the parser that needs to determine which
 concrete method is called, because this affects type checking. For example:
 
 ```mojo
-fn your_function(a: SIMD[F32, _]) -> Int where a.size.is_prime(): ...
-fn your_function(a: SIMD[F32, _]) -> F32: ...
+def your_function(a: SIMD[F32, _]) -> Int where a.size.is_prime(): ...
+def your_function(a: SIMD[F32, _]) -> F32: ...
 ```
 
 We really do need to resolve (at parser time) which candidate gets picked,

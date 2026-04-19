@@ -1,5 +1,5 @@
 # ===----------------------------------------------------------------------=== #
-# Copyright (c) 2025, Modular Inc. All rights reserved.
+# Copyright (c) 2026, Modular Inc. All rights reserved.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions:
 # https://llvm.org/LICENSE.txt
@@ -12,11 +12,12 @@
 # ===----------------------------------------------------------------------=== #
 
 from asyncrt_test_utils import create_test_device_context
-from gpu.host import DeviceContext
-from gpu.host._amdgpu_hip import HIP, hipDevice_t
+from std.gpu.host import DeviceContext
+from std.gpu.host._amdgpu_hip import HIP, hipDevice_t
+from std.testing import TestSuite
 
 
-fn _run_hip_context(ctx: DeviceContext) raises:
+def _run_hip_context(ctx: DeviceContext) raises:
     print("-")
     print("_run_hip_context()")
 
@@ -24,7 +25,7 @@ fn _run_hip_context(ctx: DeviceContext) raises:
     print("hipDevice_t: " + String(hip_ctx))
 
 
-fn _run_hip_stream(ctx: DeviceContext) raises:
+def _run_hip_stream(ctx: DeviceContext) raises:
     print("-")
     print("_run_hip_stream()")
 
@@ -36,12 +37,15 @@ fn _run_hip_stream(ctx: DeviceContext) raises:
     print("hipStream_t: " + String(hip_stream))
 
 
-fn main() raises:
+def test_hip_context() raises:
     var ctx = create_test_device_context()
-    print("-------")
-    print("Running test_smoke(" + ctx.name() + "):")
-
     _run_hip_context(ctx)
+
+
+def test_hip_stream() raises:
+    var ctx = create_test_device_context()
     _run_hip_stream(ctx)
 
-    print("Done.")
+
+def main() raises:
+    TestSuite.discover_tests[__functions_in_module()]().run()

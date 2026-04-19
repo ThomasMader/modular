@@ -1,5 +1,5 @@
 # ===----------------------------------------------------------------------=== #
-# Copyright (c) 2025, Modular Inc. All rights reserved.
+# Copyright (c) 2026, Modular Inc. All rights reserved.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions:
 # https://llvm.org/LICENSE.txt
@@ -165,8 +165,9 @@ class Package:
         if len(unique_downloads) == 1:
             actual = f'"{next(iter(unique_downloads))}",'
         else:
+            newline = "\n"
             actual = f"""select({{
-            {",\n            ".join(sorted(f'"{k}": "{v}"' for k, v in select_values.items()))},
+            {f",{newline}            ".join(sorted(f'"{k}": "{v}"' for k, v in select_values.items()))},
         }}),"""
 
         tags_line = ""

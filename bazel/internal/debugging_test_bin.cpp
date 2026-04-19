@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright (c) 2025, Modular Inc. All rights reserved.
+// Copyright (c) 2026, Modular Inc. All rights reserved.
 //
 // Licensed under the Apache License v2.0 with LLVM Exceptions:
 // https://llvm.org/LICENSE.txt
@@ -28,7 +28,7 @@
 
 #include <iostream>
 
-#include "bazel/internal/debugging_test_lib.h"
+#include "debugging_test_lib.h"
 
 void test_binary_function() {
   std::cout << "Debugging test binary function called." << std::endl;

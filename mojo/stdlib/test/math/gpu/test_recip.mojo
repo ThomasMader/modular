@@ -1,5 +1,5 @@
 # ===----------------------------------------------------------------------=== #
-# Copyright (c) 2025, Modular Inc. All rights reserved.
+# Copyright (c) 2026, Modular Inc. All rights reserved.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions:
 # https://llvm.org/LICENSE.txt
@@ -11,25 +11,25 @@
 # limitations under the License.
 # ===----------------------------------------------------------------------=== #
 
-from math import recip
+from std.math import recip
 
-from gpu.host import DeviceContext
-from testing import assert_almost_equal
+from std.gpu.host import DeviceContext
+from std.testing import assert_almost_equal, TestSuite
 
 
-fn run_func[
+def run_func[
     dtype: DType
 ](val: Scalar[dtype], ref_: Scalar[dtype], ctx: DeviceContext) raises:
     var out = ctx.enqueue_create_buffer[dtype](1)
 
     @parameter
-    fn kernel(out_dev: UnsafePointer[Scalar[dtype]], lhs: Scalar[dtype]):
+    def kernel(
+        out_dev: UnsafePointer[Scalar[dtype], MutAnyOrigin], lhs: Scalar[dtype]
+    ):
         var result = recip(lhs)
         out_dev[0] = result
 
-    ctx.enqueue_function_checked[kernel, kernel](
-        out, val, grid_dim=1, block_dim=1
-    )
+    ctx.enqueue_function_experimental[kernel](out, val, grid_dim=1, block_dim=1)
     with out.map_to_host() as out_host:
         assert_almost_equal(
             out_host[0],
@@ -39,9 +39,13 @@ fn run_func[
         )
 
 
-def main():
+def test_recip() raises:
     with DeviceContext() as ctx:
         run_func[DType.float64](8, 0.125, ctx)
         run_func[DType.float32](5, 0.2, ctx)
         run_func[DType.float16](-4, -0.25, ctx)
         run_func[DType.bfloat16](2, 0.5, ctx)
+
+
+def main() raises:
+    TestSuite.discover_tests[__functions_in_module()]().run()

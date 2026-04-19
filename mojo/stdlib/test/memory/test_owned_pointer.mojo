@@ -1,5 +1,5 @@
 # ===----------------------------------------------------------------------=== #
-# Copyright (c) 2025, Modular Inc. All rights reserved.
+# Copyright (c) 2026, Modular Inc. All rights reserved.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions:
 # https://llvm.org/LICENSE.txt
@@ -11,27 +11,33 @@
 # limitations under the License.
 # ===----------------------------------------------------------------------=== #
 
-from memory import OwnedPointer
+from std.memory import OwnedPointer
 from test_utils import (
     ExplicitCopyOnly,
     ImplicitCopyOnly,
     MoveOnly,
     ObservableDel,
+    check_write_to,
+)
+from std.testing import (
+    assert_equal,
+    assert_false,
+    assert_not_equal,
+    assert_true,
     TestSuite,
 )
-from testing import assert_equal, assert_false, assert_not_equal, assert_true
 
 
-def test_basic_ref():
+def test_basic_ref() raises:
     var b = OwnedPointer(1)
     assert_equal(1, b[])
 
 
-def test_from_unsafe_pointer_constructor():
+def test_from_unsafe_pointer_constructor() raises:
     var deleted = False
-    var unsafe_ptr = UnsafePointer[ObservableDel].alloc(1)
+    var unsafe_ptr = alloc[ObservableDel[]](1)
     unsafe_ptr.init_pointee_move(
-        ObservableDel(UnsafePointer(to=deleted).origin_cast[False]())
+        ObservableDel(UnsafePointer(to=deleted).as_any_origin())
     )
 
     var ptr = OwnedPointer(unsafe_from_raw_pointer=unsafe_ptr)
@@ -40,17 +46,17 @@ def test_from_unsafe_pointer_constructor():
     assert_true(deleted)
 
 
-def test_owned_pointer_copy_constructor():
+def test_owned_pointer_copy_constructor() raises:
     var b = OwnedPointer(1)
     var b2 = OwnedPointer(other=b)
 
     assert_equal(1, b[])
     assert_equal(1, b2[])
 
-    assert_not_equal(b.unsafe_ptr(), b2.unsafe_ptr())
+    assert_false(b.unsafe_ptr() == b2.unsafe_ptr())
 
 
-def test_copying_constructor():
+def test_copying_constructor() raises:
     var v = ImplicitCopyOnly(1)
     var b = OwnedPointer(v)
 
@@ -58,7 +64,7 @@ def test_copying_constructor():
     assert_equal(b[].copy_count, 1)  # this should only ever require one copy
 
 
-def test_explicitly_copying_constructor():
+def test_explicitly_copying_constructor() raises:
     var v = ExplicitCopyOnly(1)
     var b = OwnedPointer(copy_value=v)
 
@@ -66,14 +72,14 @@ def test_explicitly_copying_constructor():
     assert_equal(b[].copy_count, 1)  # this should only ever require one copy
 
 
-def test_moving_constructor():
+def test_moving_constructor() raises:
     var v = MoveOnly[Int](1)
     var b = OwnedPointer(v^)
 
     assert_equal(b[].data, 1)
 
 
-def test_basic_ref_mutate():
+def test_basic_ref_mutate() raises:
     var b = OwnedPointer(1)
     assert_equal(1, b[])
 
@@ -82,7 +88,7 @@ def test_basic_ref_mutate():
     assert_equal(2, b[])
 
 
-def test_multiple_refs():
+def test_multiple_refs() raises:
     var b = OwnedPointer(1)
 
     var borrow1 = b[]
@@ -91,7 +97,7 @@ def test_multiple_refs():
     assert_equal(2, borrow1 + borrow2)
 
 
-def test_basic_del():
+def test_basic_del() raises:
     var deleted = False
     var b = OwnedPointer(ObservableDel(UnsafePointer(to=deleted)))
 
@@ -102,13 +108,13 @@ def test_basic_del():
     assert_true(deleted)
 
 
-def test_take():
+def test_take() raises:
     var b = OwnedPointer(1)
     var v = b^.take()
     assert_equal(1, v)
 
 
-def test_moveinit():
+def test_moveinit() raises:
     var deleted = False
     var b = OwnedPointer(ObservableDel(UnsafePointer(to=deleted)))
     var p1 = Int(b.unsafe_ptr())
@@ -124,7 +130,7 @@ def test_moveinit():
     _ = b2^
 
 
-def test_steal_data():
+def test_steal_data() raises:
     var deleted = False
 
     var owned_ptr = OwnedPointer(ObservableDel(UnsafePointer(to=deleted)))
@@ -137,18 +143,21 @@ def test_steal_data():
     _ = OwnedPointer(unsafe_from_raw_pointer=ptr)
 
 
-def main():
-    var suite = TestSuite()
+def test_write_to() raises:
+    check_write_to(OwnedPointer(42), expected="42", is_repr=False)
+    check_write_to(OwnedPointer("hello"), expected="hello", is_repr=False)
 
-    suite.test[test_basic_ref]()
-    suite.test[test_owned_pointer_copy_constructor]()
-    suite.test[test_moving_constructor]()
-    suite.test[test_copying_constructor]()
-    suite.test[test_explicitly_copying_constructor]()
-    suite.test[test_basic_ref_mutate]()
-    suite.test[test_basic_del]()
-    suite.test[test_take]()
-    suite.test[test_moveinit]()
-    suite.test[test_steal_data]()
 
-    suite^.run()
+def test_write_repr_to() raises:
+    check_write_to(
+        OwnedPointer(42), expected="OwnedPointer[Int](Int(42))", is_repr=True
+    )
+    check_write_to(
+        OwnedPointer("hello"),
+        expected="OwnedPointer[String]('hello')",
+        is_repr=True,
+    )
+
+
+def main() raises:
+    TestSuite.discover_tests[__functions_in_module()]().run()

@@ -1,5 +1,5 @@
 # ===----------------------------------------------------------------------=== #
-# Copyright (c) 2025, Modular Inc. All rights reserved.
+# Copyright (c) 2026, Modular Inc. All rights reserved.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions:
 # https://llvm.org/LICENSE.txt
@@ -24,7 +24,6 @@ load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("@@rules_pycross+//pycross:defs.bzl", "pycross_wheel_build", "pycross_wheel_library")
 
 _TESTONLY_DEPS = [
-    "accelerate",
     "einx",
     "frozendict",
     "hypothesis",
@@ -32,13 +31,15 @@ _TESTONLY_DEPS = [
     "lm-eval",
     "mteb",
     "peft",
-    "pygame",
+    "pygame-ce",
     "reference_residual_fsq",
     "sentence-transformers",
     "soxr",
     "timm",
     "torchmetrics",
     "torchvision",
+    "vllm",
+    "xgrammar",
     "zhconv",
 ]
 
@@ -60,21 +61,21 @@ def targets():
     native.alias(
         name = "torch@multiple",
         actual = select({{
-            "@@//:amd_gpu": ":torch@2.7.0+rocm6.3",
-            "@@//:nvidia_gpu": ":torch@2.7.0+cu128",
-            "@platforms//os:macos": ":torch@2.7.0",
-            "//conditions:default": ":torch@2.7.0+cpu",
+            "@@//:amd_gpu": ":torch@2.10.0+rocm7.1.1.lw.gitd9556b05",
+            "@@//:nvidia_gpu": ":torch@2.10.0+cu128",
+            "@platforms//os:macos": ":torch@2.10.0",
+            "//conditions:default": ":torch@2.10.0+cpu",
         }}),
     )
 
     native.alias(
         name = "torchaudio@multiple",
         actual = select({{
-            "@@//:amd_gpu": ":torchaudio@2.7.0+rocm6.3",
-            "@@//:nvidia_gpu": ":torchaudio@2.7.0+cu128",
-            "@platforms//os:macos": ":torchaudio@2.7.0",
-            "@@//:linux_aarch64": ":torchaudio@2.7.0",
-            "//conditions:default": ":torchaudio@2.7.0+cpu",
+            "@@//:amd_gpu": ":torchaudio@2.10.0+rocm7.1.1.git5047768f",
+            "@@//:nvidia_gpu": ":torchaudio@2.10.0+cu128",
+            "@platforms//os:macos": ":torchaudio@2.10.0",
+            "@@//:linux_aarch64": ":torchaudio@2.10.0",
+            "//conditions:default": ":torchaudio@2.10.0+cpu",
         }}),
     )
 
@@ -82,16 +83,51 @@ def targets():
         name = "torchvision@multiple",
         testonly = True,
         actual = select({{
-            "@@//:amd_gpu": ":torchvision@0.22.0+rocm6.3",
-            "@@//:nvidia_gpu": ":torchvision@0.22.0+cu128",
-            "@platforms//os:macos": ":torchvision@0.22.0",
-            "@@//:linux_aarch64": ":torchvision@0.22.0",
-            "//conditions:default": ":torchvision@0.22.0+cpu",
+            "@@//:amd_gpu": ":torchvision@0.25.0+rocm7.1.1.git82df5f59",
+            "@@//:nvidia_gpu": ":torchvision@0.25.0+cu128",
+            "@platforms//os:macos": ":torchvision@0.25.0",
+            "@@//:linux_aarch64": ":torchvision@0.25.0+cpu",
+            "//conditions:default": ":torchvision@0.25.0+cpu",
+        }}),
+    )
+
+    native.alias(
+        name = "triton@multiple",
+        testonly = True,
+        actual = select({{
+            "@@//:amd_gpu": ":triton@3.6.0+rocm7.1.1.gitba5c1517",
+            "//conditions:default": ":triton@3.6.0",
+        }}),
+    )
+
+    native.alias(
+        name = "numpy@multiple",
+        testonly = True,
+        actual = select({{
+            ":_env_python_3.10_aarch64-apple-darwin": ":numpy@2.2.6",
+            ":_env_python_3.10_aarch64-unknown-linux-gnu": ":numpy@2.2.6",
+            ":_env_python_3.10_x86_64-unknown-linux-gnu": ":numpy@2.2.6",
+            ":_env_python_3.10_x86_64-unknown-linux-gnu_amd_gpu": ":numpy@2.2.6",
+            ":_env_python_3.10_x86_64-unknown-linux-gnu_nvidia_gpu": ":numpy@2.2.6",
+            "//conditions:default": ":numpy@2.3.5",
+        }}),
+    )
+
+    native.alias(
+        name = "scipy@multiple",
+        testonly = True,
+        actual = select({{
+            ":_env_python_3.10_aarch64-apple-darwin": ":scipy@1.14.1",
+            ":_env_python_3.10_aarch64-unknown-linux-gnu": ":scipy@1.14.1",
+            ":_env_python_3.10_x86_64-unknown-linux-gnu": ":scipy@1.14.1",
+            ":_env_python_3.10_x86_64-unknown-linux-gnu_amd_gpu": ":scipy@1.14.1",
+            ":_env_python_3.10_x86_64-unknown-linux-gnu_nvidia_gpu": ":scipy@1.14.1",
+            "//conditions:default": ":scipy@1.16.3",
         }}),
     )
 
     extra_build_args = {{
-        "copts": ["-fvisibility=default"],
+        "copts": ["-fvisibility=default", "-w"],
         "linkopts": select({{
             "@platforms//os:linux": ["-Wl,-z,undefs"],
             "@platforms//os:macos": ["-Wl,-undefined,dynamic_lookup"],
@@ -119,6 +155,24 @@ def targets():
                 match_all = [
                     "@@//:{{}}_gpu".format(gpu),
                     "_env_python_{{}}_x86_64-unknown-linux-gnu".format(version),
+                ],
+            )
+
+    for version in [v for v in PYTHON_VERSIONS_DOTTED if v >= "3.14"]:
+        for platform in ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"]:
+            alias_name = "_env_python_{{}}_{{}}-freethreaded".format(version, platform)
+            build_targets[":" + alias_name] = "@@rules_pycross++environments+rules_pycross_all_environments//:python_{{}}_{{}}-freethreaded.json".format(version, platform)
+            native.alias(
+                name = alias_name,
+                actual = "@@rules_pycross++environments+rules_pycross_all_environments//:python_{{}}_{{}}-freethreaded_config".format(version, platform),
+            )
+
+        for gpu in ["nvidia", "amd"]:
+            selects.config_setting_group(
+                name = "_env_python_{{}}_x86_64-unknown-linux-gnu-freethreaded_{{}}_gpu".format(version, gpu),
+                match_all = [
+                    "@@//:{{}}_gpu".format(gpu),
+                    "_env_python_{{}}_x86_64-unknown-linux-gnu-freethreaded".format(version),
                 ],
             )
 

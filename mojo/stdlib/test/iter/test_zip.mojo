@@ -1,5 +1,5 @@
 # ===----------------------------------------------------------------------=== #
-# Copyright (c) 2025, Modular Inc. All rights reserved.
+# Copyright (c) 2026, Modular Inc. All rights reserved.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions:
 # https://llvm.org/LICENSE.txt
@@ -11,10 +11,16 @@
 # limitations under the License.
 # ===----------------------------------------------------------------------=== #
 
-from testing import assert_equal, assert_false, assert_true
+from std.testing import (
+    TestSuite,
+    assert_equal,
+    assert_false,
+    assert_true,
+    assert_raises,
+)
 
 
-fn test_zip2() raises:
+def test_zip2() raises:
     var l = ["hey", "hi", "hello"]
     var l2 = [10, 20, 30]
     var it = zip(l, l2)
@@ -27,10 +33,11 @@ fn test_zip2() raises:
     elem = next(it)
     assert_equal(elem[0], "hello")
     assert_equal(elem[1], 30)
-    assert_true(not it.__has_next__())
+    with assert_raises():
+        _ = it.__next__()  # raises StopIteration
 
 
-fn test_zip_destructure() raises:
+def test_zip_destructure() raises:
     var l = ["hey", "hi", "hello"]
     var l2 = [10, 20, 30]
     var count = 0
@@ -40,7 +47,7 @@ fn test_zip_destructure() raises:
         count += 1
 
 
-fn test_zip3() raises:
+def test_zip3() raises:
     var l = ["hey", "hi", "hello"]
     var l2 = [10, 20, 30]
     var l3 = [100, 200, 300]
@@ -57,10 +64,11 @@ fn test_zip3() raises:
     assert_equal(elem[0], "hello")
     assert_equal(elem[1], 30)
     assert_equal(elem[2], 300)
-    assert_true(not it.__has_next__())
+    with assert_raises():
+        _ = it.__next__()  # raises StopIteration
 
 
-fn test_zip4() raises:
+def test_zip4() raises:
     var l = ["hey", "hi", "hello"]
     var l2 = [10, 20, 30]
     var l3 = [100, 200, 300]
@@ -80,10 +88,11 @@ fn test_zip4() raises:
     assert_equal(elem[0], "hello")
     assert_equal(elem[1], 30)
     assert_equal(elem[2], 300)
-    assert_true(not it.__has_next__())
+    with assert_raises():
+        _ = it.__next__()  # raises StopIteration
 
 
-fn test_zip_unequal_lengths() raises:
+def test_zip_unequal_lengths() raises:
     var l = ["hey", "hi", "hello"]
     var l2 = [10, 20]
     var it = zip(l, l2)
@@ -93,33 +102,31 @@ fn test_zip_unequal_lengths() raises:
     elem = next(it)
     assert_equal(elem[0], "hi")
     assert_equal(elem[1], 20)
-    assert_true(not it.__has_next__())
+    with assert_raises():
+        _ = it.__next__()  # raises StopIteration
 
 
 @fieldwise_init
-struct TestIter(ImplicitlyCopyable, Iterable, Iterator, Movable):
-    alias Element = Int
-    alias IteratorType[
-        iterable_mut: Bool, //, iterable_origin: Origin[iterable_mut]
+struct TestIter(ImplicitlyCopyable, Iterable, Iterator):
+    comptime Element = Int
+    comptime IteratorType[
+        iterable_mut: Bool, //, iterable_origin: Origin[mut=iterable_mut]
     ]: Iterator = Self
 
     var lower: Int
     var upper: Optional[Int]
 
-    fn __iter__(ref self) -> Self.IteratorType[__origin_of(self)]:
+    def __iter__(ref self) -> Self.IteratorType[origin_of(self)]:
         return self.copy()
 
-    fn __has_next__(self) -> Bool:
-        return True
-
-    fn __next__(mut self) -> Self.Element:
+    def __next__(mut self) raises StopIteration -> Self.Element:
         return 42
 
-    fn bounds(self) -> Tuple[Int, Optional[Int]]:
+    def bounds(self) -> Tuple[Int, Optional[Int]]:
         return (self.lower, self.upper)
 
 
-fn test_zip_bounds() raises:
+def test_zip_bounds() raises:
     # same size bounds
     var zipA = zip(TestIter(2, {2}), TestIter(2, {2}))
     assert_equal(zipA.bounds()[0], 2)
@@ -146,10 +153,56 @@ fn test_zip_bounds() raises:
     assert_false(Bool(zipD.bounds()[1]))
 
 
-fn main() raises:
-    test_zip2()
-    test_zip3()
-    test_zip4()
-    test_zip_destructure()
-    test_zip_unequal_lengths()
-    test_zip_bounds()
+def test_zip2_owned() raises:
+    var la: List[String] = ["a", "b"]
+    var lb: List[Int] = [1, 2]
+    var it = zip(la^, lb^)
+    var elem = next(it)
+    assert_equal(elem[0], "a")
+    assert_equal(elem[1], 1)
+    elem = next(it)
+    assert_equal(elem[0], "b")
+    assert_equal(elem[1], 2)
+    with assert_raises():
+        _ = next(it)
+
+
+def test_zip3_owned() raises:
+    var la: List[Int] = [1, 2]
+    var lb: List[Int] = [3, 4]
+    var lc: List[Int] = [5, 6]
+    var it = zip(la^, lb^, lc^)
+    var elem = next(it)
+    assert_equal(elem[0], 1)
+    assert_equal(elem[1], 3)
+    assert_equal(elem[2], 5)
+    elem = next(it)
+    assert_equal(elem[0], 2)
+    assert_equal(elem[1], 4)
+    assert_equal(elem[2], 6)
+    with assert_raises():
+        _ = next(it)
+
+
+def test_zip4_owned() raises:
+    var la: List[Int] = [1, 2]
+    var lb: List[Int] = [3, 4]
+    var lc: List[Int] = [5, 6]
+    var ld: List[Int] = [7, 8]
+    var it = zip(la^, lb^, lc^, ld^)
+    var elem = next(it)
+    assert_equal(elem[0], 1)
+    assert_equal(elem[1], 3)
+    assert_equal(elem[2], 5)
+    assert_equal(elem[3], 7)
+    elem = next(it)
+    assert_equal(elem[0], 2)
+    assert_equal(elem[1], 4)
+    assert_equal(elem[2], 6)
+    assert_equal(elem[3], 8)
+    with assert_raises():
+        _ = next(it)
+
+
+def main() raises:
+    TestSuite.discover_tests[__functions_in_module()]().run()
