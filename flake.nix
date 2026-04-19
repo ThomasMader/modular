@@ -1,3 +1,4 @@
+# If bazel fails try to delete the cache in /home/thomad/.cache/bazel first.
 {
   description = "Modular development environment";
 
